@@ -207,6 +207,7 @@ static MainMenuItem items[] = {
 // I've forgotten to update the number in every instance I've had to, so it's time to do this
 #define NBR_ITEMS (sizeof(items) / sizeof(MainMenuItem))
 
+[[gnu::const]]
 bool is_dolphin(void) {
 	int fd = IOS_Open("/dev/dolphin", 0);
 	if (fd >= 0) {
@@ -253,15 +254,12 @@ int main() {
 
 	DownloadOriginalTheme(true);
 
-	if (!sysmenu->hasPriiloader) {
-		puts(CONSOLE_ESC(37;2m) "Please install Priiloader..!" CONSOLE_RESET);
+	if (!is_dolphin() && !sysmenu->hasPriiloader) {
+		puts(CONSOLE_BG_RED "Please install Priiloader!!!!" CONSOLE_RESET);
 		sleep(2);
 
-		if (sysmenu->platform == Mini) // There's nooooooooo way you're doing this on Mini with no Priiloader. Illegal
-			goto waitexit;
+		goto waitexit;
 
-		puts("Press A to continue.");
-		input_wait(INPUT_A);
 	}
 
 	MainMenu(items, NBR_ITEMS);
