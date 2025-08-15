@@ -48,7 +48,7 @@ static int entry_sort(const void* a_, const void* b_) {
 static void PrintEntries(struct entry entries[], int start, int count, int max, int selected) {
 	int i = 0;
 	if (!count) {
-		printf("\t\x1b[30;1m[Nothing.]\x1b[39m");
+		printf("	" CONSOLE_ESC(37;2m) "[Nothing.]" CONSOLE_RESET);
 	}
 	else {
 		for (i = 0; i < MIN(max, count); i++) {
@@ -56,12 +56,6 @@ static void PrintEntries(struct entry entries[], int start, int count, int max, 
 			(start + i) == selected? ">>" : "",
 			entries[start + i].name);
 		}
-	}
-
-
-	while (i < max) {
-		putchar('\n');
-		i++;
 	}
 }
 
@@ -114,14 +108,7 @@ static bool GetDirectoryEntries(const char* path, struct entry** entries, int* c
 int SelectFileMenu(const char* header, const char* defaultFolder, FileFilter filter, char filepath[PATH_MAX]) {
 	static char workpath[PATH_MAX];
 	struct entry* entries = NULL;
-	int cnt = 0, start = 0, index = 0, max = 0;
-	int conX = 0, conY = 0;
-	char line[128];
-
-	CON_GetMetrics(&conX, &conY);
-	memset(line, 0xc4, conX);
-	// line[conX] = 0;
-	max = conY - 6; // 3 lines for the top and 3 lines for the bottom
+	int cnt = 0, start = 0, index = 0, max = gConsole.windowHeight - 8;
 
 	if (defaultFolder) {
 		sprintf(workpath, "%s:%s/", GetActiveDeviceName(), defaultFolder);
@@ -135,7 +122,7 @@ int SelectFileMenu(const char* header, const char* defaultFolder, FileFilter fil
 
 a:
 	for(;;) {
-		clear();
+		cls();
 		if (!entries)
 			return -1;
 
@@ -143,33 +130,38 @@ a:
 
 		const char* workpath_ptr = (strlen(workpath) > 30) ? workpath + strlen(workpath) - 30 : workpath;
 		printf(
-			"\n%s\n"
+			"%s\n"
 			"Current directory: [%s] - %i-%i of %i total\n"
-			"%.*s",
+			CONSOLE_ESC(9m) "%*s" CONSOLE_ESC(29m) "\n",
 		header ?: "Select a file.",
 		workpath_ptr, start + 1, start + MIN(max, cnt - start), cnt,
-		conX, line);
+		gConsole.windowWidth - 1, "");
 
 		PrintEntries(entries, start, cnt, max, index);
 
+		gConsole.cursorX = 1;
+		gConsole.cursorY = gConsole.windowHeight - 4;
 		printf(
-			"%.2sControls:%.*s\n"
+			"  Controls:%*s\n"
+			CONSOLE_ESC(9m) "%*s\n" CONSOLE_ESC(29m)
 			"	(A) : %-35s  \x12 Up/Down : Move cursor\n"
 			"	[B] : %-35s Home/Start : Main menu",
-			line, conX - 12, line,
+
+			gConsole.windowWidth - 12, "",
+			gConsole.windowWidth - 1, "",
 			(!cnt) ? "Exit directory" : ((entry->isdir) ? "Enter directory" : "Install theme file"),
 			(strchr(workpath, '/') == strrchr(workpath, '/')) ? "Main menu" : "Exit directory"
 		);
 
-		u32 buttons = wait_button(0);
-		if (buttons & WPAD_BUTTON_DOWN) {
+		u32 buttons = input_wait(0);
+		if (buttons & INPUT_DOWN) {
 			if (index >= (cnt - 1))
 				start = index = 0;
 
 			else if ((++index - start) >= max)
 				start++;
 		}
-		else if (buttons & WPAD_BUTTON_UP) {
+		else if (buttons & INPUT_UP) {
 			if (index <= 0) {
 				index = cnt - 1;
 				if (index >= max)
@@ -180,7 +172,7 @@ a:
 				start--;
 
 		}
-		else if (buttons & WPAD_BUTTON_A) {
+		else if (buttons & INPUT_A) {
 			if (!cnt) {
 				goBack(workpath);
 				GetDirectoryEntries(workpath, &entries, &cnt, filter);
@@ -199,7 +191,7 @@ a:
 				return 0;
 			}
 		}
-		else if (buttons & WPAD_BUTTON_B) {
+		else if (buttons & INPUT_B) {
 			if (!goBack(workpath)) {
 				free(entries);
 				entries = NULL;
@@ -210,7 +202,7 @@ a:
 			GetDirectoryEntries(workpath, &entries, &cnt, filter);
 			index = start = 0;
 		}
-		else if (buttons & WPAD_BUTTON_HOME) {
+		else if (buttons & INPUT_START) {
 			free(entries);
 			entries = NULL;
 			errno = ECANCELED;

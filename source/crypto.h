@@ -19,6 +19,7 @@ static const aeskey CommonKeys[3] = {
 	/*   vWii common key   */	{ 0x30, 0xbf, 0xc7, 0x6e, 0x7c, 0x19, 0xaf, 0xbb, 0x23, 0x16, 0x33, 0x30, 0xce, 0xd7, 0xc2, 0x8d },
 };
 
+void SetupCommonKeys(void);
 void GetTitleKey(tik*, aeskey);
 void ChangeCommonKey(tik*, uint8_t);
 int DecryptTitleContent(tik* p_tik, uint16_t index, void* content, size_t csize, void* out, void* iv);

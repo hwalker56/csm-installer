@@ -59,36 +59,6 @@ static int xferinfo_cb(void* userp, curl_off_t dltotal, curl_off_t dlnow, curl_o
 	return 0;
 }
 
-int network_getlasterror(void) {
-	int ret;
-
-	int fd = ret = IOS_Open("/dev/net/ncd/manage", IPC_OPEN_READ);
-	if (ret < 0) {
-		printf("IOS_Open failed (%i)\n", ret);
-		return ret;
-	}
-
-	int stbuf[8] __aligned(0x20) = {};
-	ioctlv vecs[1] __aligned(0x20) = {
-		{
-			.data = stbuf,
-			.len  = sizeof(stbuf),
-		}
-	};
-
-	ret = IOS_Ioctlv(fd, 0x7, 0, 1, vecs);
-	if (ret < 0) {
-		printf("NCDGetLinkStatus returned %i\n", ret);
-		// return ret;
-	}
-	IOS_Close(fd);
-
-	puts("NCDGetLinkStatus:");
-	printf("%i:%i:%i:%i:%i:%i:%i:%i\n", stbuf[0], stbuf[1], stbuf[2], stbuf[3], stbuf[4], stbuf[5], stbuf[6], stbuf[7]);
-
-	return ret;
-}
-
 int network_init() {
 	if ((network_up = wiisocket_get_status()) > 0)
 		return 0;
@@ -127,13 +97,13 @@ int DownloadFile(char* url, blob* blob) {
 	curl_easy_setopt(curl, CURLOPT_XFERINFODATA, &data);
 	curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteToBlob);
 	curl_easy_setopt(curl, CURLOPT_WRITEDATA, blob);
-	ebuffer[0] = '\x00';
+	*ebuffer = '\0';
 	res = curl_easy_perform(curl);
 	putchar('\n');
 	curl_easy_cleanup(curl);
 
 	if (res != CURLE_OK) {
-		if (!ebuffer[0])
+		if (*ebuffer == '\0')
 			strcpy(ebuffer, curl_easy_strerror(res));
 	}
 

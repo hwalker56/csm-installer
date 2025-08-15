@@ -7,7 +7,7 @@
 
 #include "u8.h"
 
-#define ERROR(str, ...) fprintf(stderr, "%s:%i: \n" str "\n", __FILE__, __LINE__, ##__VA_ARGS__)
+#define ERROR(str, ...) fprintf(stderr, "%s:%i: \n" str "\n", __FILE_NAME__, __LINE__, ##__VA_ARGS__)
 
 int U8Init(void* ptr, U8Context* ctx) {
     assert(ptr != NULL);

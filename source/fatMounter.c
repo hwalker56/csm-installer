@@ -19,7 +19,7 @@ typedef struct {
 
 static FATDevice devices[] = {
 	{
-		.friendlyName = "SD card slot",
+		.friendlyName = "SD card",
 		.name         = "sd",
 		.disk         = &__io_wiisd
 	},
@@ -91,24 +91,23 @@ void FATSelectDefault() {
 	FATDevice* target = NULL;
 	bool selected = false;
 	while (!selected) {
-		clearln();
-		printf("[*]	Device: < %s >", attached[index]->friendlyName);
+		printf_clearln("[*]	Device: < %s >", attached[index]->friendlyName);
 
-		switch (wait_button(0))
+		switch (input_wait(0))
 		{
-			case WPAD_BUTTON_LEFT:
+			case INPUT_LEFT:
 				if (index) index -= 1;
 				break;
 
-			case WPAD_BUTTON_RIGHT:
+			case INPUT_RIGHT:
 				if (++index == i) index = 0;
 				break;
 
-			case WPAD_BUTTON_A:
+			case INPUT_A:
 				target = attached[index];
 
-			case WPAD_BUTTON_B:
-			case WPAD_BUTTON_HOME:
+			case INPUT_B:
+			case INPUT_START:
 				selected = true;
 				break;
 		}

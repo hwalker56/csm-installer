@@ -33,7 +33,7 @@ LDFLAGS	=	-g $(MACHDEP) -Wl,-Map,$(notdir $@).map
 #---------------------------------------------------------------------------------
 # any extra libraries we wish to link with the project
 #---------------------------------------------------------------------------------
-LIBS	:=	 -lcurl -lz -lmbedtls -lmbedcrypto -lmbedx509 -lwiisocket -lwiiuse -lbte -lfat -logc -lm -lpatcher -lwiikeyboard
+LIBS	:=	 -lcurl -lz -lmbedtls -lmbedcrypto -lmbedx509 -lwiisocket -lwiiuse -lbte -lfat -logc -lm -lwiikeyboard
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -105,9 +105,8 @@ clean:
 	@rm -fr $(BUILD) $(OUTPUT).elf $(OUTPUT).dol $(OUTPUT).zip apps/$(TARGET)/boot.dol
 
 #---------------------------------------------------------------------------------
-run:
+run: $(TARGET).dol
 	wiiload $(TARGET).dol
-
 
 #---------------------------------------------------------------------------------
 pack: $(BUILD)
@@ -127,7 +126,7 @@ $(OUTPUT).elf: $(OFILES)
 #---------------------------------------------------------------------------------
 # This rule links in binary data with the .jpg extension
 #---------------------------------------------------------------------------------
-%.jpg.o	:	%.jpg
+%.bin.o	:	%.bin
 #---------------------------------------------------------------------------------
 	@echo $(notdir $<)
 	$(bin2o)

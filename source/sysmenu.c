@@ -12,7 +12,7 @@
 #include "pad.h"
 #include "fs.h"
 #include "crypto.h"
-#include "malloc.h"
+#include "common.h"
 #include "sysmenu.h"
 #include "theme.h"
 
@@ -161,7 +161,7 @@ int sysmenu_process() {
 			sysmenu->hasPriiloader = (NAND_GetFileSize(filepath, NULL) >= 0);
 		}
 		else {
-			char header[4] ATTRIBUTE_ALIGN(0x20) = {};
+			unsigned char header[0x20] ATTRIBUTE_ALIGN(0x20) = {};
 			ret = NAND_Read(filepath, header, 4, NULL);
 			if (ret < 0) {
 				printf("Failed to read %s (%i)\n", filepath, ret);

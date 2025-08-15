@@ -6,21 +6,20 @@
 #include <ogc/es.h>
 #include <ogc/cache.h>
 #include <wiiuse/wpad.h>
-#include <libpatcher.h>
+// #include <libpatcher.h>
+#include "superuser.h"
 
 #include "video.h"
-#include "malloc.h"
+#include "common.h"
 #include "pad.h"
 #include "fs.h"
 #include "fatMounter.h"
 #include "directory.h"
 #include "menu.h"
+#include "crypto.h"
 #include "sysmenu.h"
 #include "theme.h"
 #include "network.h"
-
-__weak_symbol __printflike(1, 2)
-void OSReport(const char* fmt, ...) {}
 
 extern void __exception_setreload(int);
 
@@ -37,7 +36,7 @@ int SelectTheme() {
 	void* buffer = NULL;
 
 	ret = SelectFileMenu("Select a .csm or .app file.", "/themes", isCSMfile, file);
-	clear();
+	cls();
 
 	if (ret) {
 		perror("SelectFileMenu failed");
@@ -58,7 +57,7 @@ int SelectTheme() {
 	printf("Press +/START to install.\n"
 			"Press any other button to cancel.\n\n");
 
-	if (!(wait_button(0) & WPAD_BUTTON_PLUS))
+	if (!(input_wait(0) & INPUT_START))
 		return -ECANCELED;
 
 	buffer = memalign32(fsize);
@@ -112,24 +111,27 @@ int ReloadDevices(void)
 	if (FATMount())
 		FATSelectDefault();
 	else
-		wait_button(0);
+		input_wait(0);
 
 	return 0;
 }
 
 void deinitialize(void)
 {
+	network_deinit();
 	ISFS_Deinitialize();
 	FATUnmount();
-	network_deinit();
+	input_shutdown();
 }
 
+[[noreturn]]
 int HBC(void)
 {
 	deinitialize();
 	exit(0);
 }
 
+[[noreturn]]
 int WiiMenu(void)
 {
 	deinitialize();
@@ -205,6 +207,21 @@ static MainMenuItem items[] = {
 // I've forgotten to update the number in every instance I've had to, so it's time to do this
 #define NBR_ITEMS (sizeof(items) / sizeof(MainMenuItem))
 
+bool is_dolphin(void) {
+	int fd = IOS_Open("/dev/dolphin", 0);
+	if (fd >= 0) {
+		IOS_Close(fd);
+		return true;
+	}
+
+	fd = IOS_Open("/dev/aes", 0);
+	if (fd >= 0) {
+		IOS_Close(fd);
+	}
+
+	return (fd == IPC_ENOENT);
+}
+
 int main() {
 	__exception_setreload(10);
 
@@ -213,21 +230,19 @@ int main() {
 
 	puts("Loading...");
 
-	if (!patch_ahbprot_reset() || !patch_isfs_permissions()) {
-	//	printf("\x1b[30;1mHW_AHBPROT: %08X\x1b[39m\n", *((volatile uint32_t*)0xcd800064));
-		puts("failed to apply IOS patches!\n"
-			 "Please make sure that you are running this app on HBC v1.0.8 or later,\n"
-			 "and that <ahb_access/> is under the <app> node in meta.xml!\n\n"
+	if (!is_dolphin() && !get_root_access()) {
+		puts("Failed to obtain root access...\n\n"
 
 			 "Exiting in 5 seconds..."
 		);
 		sleep(5);
-		return *((volatile uint32_t*)0xcd800064);
+		return -1;
 	}
 
-	initpads();
+	input_init();
 	ISFS_Initialize();
 
+	SetupCommonKeys();
 	if (sysmenu_process() < 0)
 		goto waitexit;
 
@@ -239,14 +254,14 @@ int main() {
 	DownloadOriginalTheme(true);
 
 	if (!sysmenu->hasPriiloader) {
-		printf("\x1b[30;1mPlease install Priiloader..!\x1b[39m\n\n");
+		puts(CONSOLE_ESC(37;2m) "Please install Priiloader..!" CONSOLE_RESET);
 		sleep(2);
 
 		if (sysmenu->platform == Mini) // There's nooooooooo way you're doing this on Mini with no Priiloader. Illegal
 			goto waitexit;
 
 		puts("Press A to continue.");
-		wait_button(WPAD_BUTTON_A);
+		input_wait(INPUT_A);
 	}
 
 	MainMenu(items, NBR_ITEMS);
@@ -257,6 +272,6 @@ exit:
 
 waitexit:
 	puts("Press any button to exit.");
-	wait_button(0);
+	input_wait(0);
 	goto exit;
 }

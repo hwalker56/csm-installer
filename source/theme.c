@@ -11,8 +11,9 @@
 #include <mbedtls/sha1.h>
 #include <mbedtls/aes.h>
 
+#include "video.h"
 #include "theme.h"
-#include "malloc.h"
+#include "common.h"
 #include "sysmenu.h"
 #include "crypto.h"
 #include "fs.h"
@@ -198,30 +199,29 @@ int InstallTheme(void* buffer, size_t size, int dbpatching) {
 
 	version_t themeversion;
 	ExtractElfPath(elf_path, &themeversion);
-	if (themeversion.region != sysmenu->region || themeversion.major != sysmenu->versionMajor || themeversion.base != sysmenu->platform) {
-		printf("\x1b[41;30mIncompatible theme!\x1b[40;39m\n"
-			   "Theme version : %c %c.%c%c\n"
-			   "System version: %c %c.X%c\n", themeversion.base, themeversion.major,   themeversion.minor, themeversion.region,
-											  sysmenu->platform, sysmenu->versionMajor,                    sysmenu->region);
+	if (themeversion.major != sysmenu->versionMajor || themeversion.base != sysmenu->platform) {
+		printf(CONSOLE_BG_RED "Incompatible theme!" CONSOLE_RESET "\n");
+		printf("Theme version : %c %c.%c\n", themeversion.base, themeversion.major, themeversion.minor);
+		printf("System version: %c %c.X\n", sysmenu->platform, sysmenu->versionMajor);
 		return -EINVAL;
 	}
 
 	if (CheckHash(buffer, size, sysmenu->archive.hash)) {
-		puts("\x1b[32;1mThis is the default theme for your Wii menu.\x1b[39m");
+		puts(CONSOLE_BG_GREEN "This is the default theme for your Wii menu." CONSOLE_RESET);
 	}
 	else {
 		switch (FindSignature(sel_header)) {
 			case WiiThemer_v1:
 			case WiiThemer_v2:
-				puts("\x1b[36;1mThis theme was signed by wii-themer.\x1b[39m");
+				puts(CONSOLE_BG_CYAN "This theme was signed by wii-themer." CONSOLE_RESET);
 				break;
 
 			case ModMii:
-				puts("\x1b[36;1mThis theme was signed by ModMii.\x1b[39m");
+				puts(CONSOLE_BG_CYAN "This theme was signed by ModMii." CONSOLE_RESET);
 				break;
 
 			default:
-				puts("\x1b[30;1mThis theme isn't signed...\x1b[39m");
+				puts(CONSOLE_ESC(37;2m) "This theme isn't signed..." CONSOLE_RESET);
 				if (!sysmenu->hasPriiloader) {
 					puts("Consider installing Priiloader before installing unsigned themes.");
 					return -EPERM;
@@ -237,12 +237,15 @@ int InstallTheme(void* buffer, size_t size, int dbpatching) {
 	return WriteThemeFile(buffer, size);
 }
 
+#define ORIGINAL_BACKUP_PATH "/themes/original_backup"
+#define CUSTOM_BACKUP_PATH "/themes/custom_backup"
+
 int DownloadOriginalTheme(bool silent) {
 	int ret;
 	char filepath[ISFS_MAXPATH];
 	void* buffer;
 	size_t fsize = sysmenu->archive.size;
-	char url[192] = "http://nus.cdn.shop.wii.com/ccs/download/";
+	char url[] = "http://nus.cdn.shop.wii.com/ccs/download/XXXXXXXXXXXXXXXX/XXXXXXXX";
 	blob download = {};
 
 	if (!silent) puts("Downloading original theme.");
@@ -253,7 +256,7 @@ int DownloadOriginalTheme(bool silent) {
 		return -ENOMEM;
 	}
 
-	sprintf(filepath, "%s:/themes/%08x-v%hu.app", GetActiveDeviceName(), sysmenu->archive.cid, sysmenu->tmd.title_version);
+	sprintf(filepath, "%s:" ORIGINAL_BACKUP_PATH "/%08x-v%hu.app", GetActiveDeviceName(), sysmenu->archive.cid, sysmenu->tmd.title_version);
 	ret = FAT_Read(filepath, buffer, fsize, NULL);
 	if (ret >= 0 && CheckHash(buffer, fsize, sysmenu->archive.hash)) {
 		if (!silent) printf("Already saved. Look for '%s'\n", filepath);
@@ -271,7 +274,6 @@ int DownloadOriginalTheme(bool silent) {
 
 	puts("Initializing network... ");
 	ret = network_init();
-	// network_getlasterror();
 	if (ret < 0) {
 		printf("Failed to intiailize network! (%d)\n", ret);
 		goto finish;
@@ -279,7 +281,7 @@ int DownloadOriginalTheme(bool silent) {
 
 	puts("Downloading...");
 	uint64_t titleID = sysmenu->isvWii ? 0x0000000700000002LL : 0x0000000100000002LL;
-	sprintf(strrchr(url, '/'), "/%016llx/%08x", titleID, sysmenu->archive.cid);
+	sprintf(url, "http://nus.cdn.shop.wii.com/ccs/download/%016llx/%08x", titleID, sysmenu->archive.cid);
 	ret = DownloadFile(url, &download);
 	if (ret != 0) {
 		printf(
@@ -291,7 +293,7 @@ int DownloadOriginalTheme(bool silent) {
 	}
 
 	puts("Decrypting...");
-	DecryptTitleContent(&sysmenu->ticket, 1, download.ptr, download.size, buffer, NULL);
+	DecryptTitleContent(&sysmenu->ticket, 1, download.ptr, __builtin_align_up(download.size, 0x10), buffer, NULL);
 	free(download.ptr);
 
 	if (!CheckHash(buffer, fsize, sysmenu->archive.hash)) {
@@ -300,7 +302,7 @@ int DownloadOriginalTheme(bool silent) {
 	}
 
 save:
-	sprintf(filepath, "%s:/themes/%08x-v%hu.app", GetActiveDeviceName(), sysmenu->archive.cid, sysmenu->tmd.title_version);
+	sprintf(filepath, "%s:" ORIGINAL_BACKUP_PATH "/%08x-v%hu.app", GetActiveDeviceName(), sysmenu->archive.cid, sysmenu->tmd.title_version);
 
 	puts(silent ? "Saving original theme backup..." : "Saving...");
 
@@ -316,6 +318,7 @@ finish:
 //	network_deinit();
 	return ret;
 }
+
 
 int SaveCurrentTheme(void) {
 	int ret;
@@ -343,10 +346,9 @@ int SaveCurrentTheme(void) {
 		goto finish;
 	}
 
-	char* ptr = filepath + sprintf(filepath, "%s:/themes/%08x-v%hu", GetActiveDeviceName(), sysmenu->archive.cid, sysmenu->tmd.title_version);
 
 	if (CheckHash(buffer, fsize, sysmenu->archive.hash)) {
-		strcpy(ptr, ".app");
+		sprintf(filepath, "%s:" ORIGINAL_BACKUP_PATH "/%08x-v%hu.app", GetActiveDeviceName(), sysmenu->archive.cid, sysmenu->tmd.title_version);
 		if (!FAT_GetFileSize(filepath, NULL)) {
 			puts(filepath);
 			puts("File already exists.");
@@ -354,7 +356,8 @@ int SaveCurrentTheme(void) {
 		}
 	}
 	else {
-		for (unsigned i = 0; i < 9999; i++) {
+		char* ptr = filepath + sprintf(filepath, "%s:" CUSTOM_BACKUP_PATH "/%08x-v%hu", GetActiveDeviceName(), sysmenu->archive.cid, sysmenu->tmd.title_version);
+		for (unsigned i = 0; i < 10000; i++) {
 			sprintf(ptr, "_%04u.csm", i);
 			if (FAT_GetFileSize(filepath, NULL) < 0)
 				break;
@@ -417,8 +420,9 @@ int PatchThemeInPlace(void) {
 
 	puts("Saving changes...");
 
-	// ret = WriteThemeFile(buffer, fsize); // Waste of time
+	ret = WriteThemeFile(buffer, fsize);
 	/* This feels a bit sketchy tho! */
+#if 0
 	int fd = ret = ISFS_Open(filepath, ISFS_OPEN_RW); // Don't truncate pls
 	if (ret < 0) { // Not supposed to happen
 		printf("ISFS_Open failed? (%i)\n", ret);
@@ -459,7 +463,7 @@ int PatchThemeInPlace(void) {
 
 	if (!ret)
 		puts("OK!");
-
+#endif
 
 /*
 	sprintf(filepath, "%s:/themes/%08x-v%hu", GetActiveDeviceName(), sysmenu->archive.cid, sysmenu->tmd.title_version);

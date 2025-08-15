@@ -4,20 +4,22 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <errno.h>
+#include <ogc/console.h>
 #include <ogc/isfs.h>
 #include <fat.h>
 
 #include "fs.h"
 
 int progressbar(size_t read, size_t total) {
-	printf("\r[\x1b[42;1m");
+	printf("\r" CONSOLE_ESC(2K) "[" CONSOLE_BG_GREEN);
+	// printf("\r[\x1b[42;1m");
 	for (size_t i = 0; i < total; i += FS_CHUNK)  {
 		if (i > read)
-			printf("\x1b[40m");
+			printf(CONSOLE_RESET);
 
 		putchar(' ');
 	}
-	printf("\x1b[40m] %u / %u bytes (%.2f%%) ", read, total, (read / (float)total) * 100);
+	printf(CONSOLE_RESET "] %u / %u bytes (%.2f%%) ", read, total, (read / (float)total) * 100);
 	if (read == total)
 		putchar('\n');
 
@@ -134,11 +136,9 @@ int NAND_Write(const char* filepath, const void* buffer, size_t filesize, RWCall
 		if (callback) callback(wrote, filesize);
 	}
 
-	ISFS_Close(fd);
+	ret = ISFS_Close(fd);
 	if (ret < 0)
 		return ret;
-	else if (wrote != filesize)
-		return -EIO;
 
 	ret = ISFS_Delete(filepath);
 	if (ret < 0) {
@@ -158,7 +158,7 @@ int NAND_Write(const char* filepath, const void* buffer, size_t filesize, RWCall
 int FAT_Write(const char* filepath, const void* buffer, size_t filesize, RWCallback callback) {
 	FILE* fp = fopen(filepath, "wb");
 	if (!fp) {
-		if (errno == ENOTDIR) {
+		if (/* errno == ENOTDIR */ errno == ENOENT) { // libfat -> fatfs. lol
 			char* workpath = strdup(filepath);
 			if (!workpath) // !?!?
 				return -errno;
